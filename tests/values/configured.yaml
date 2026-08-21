@@ -1,0 +1,18 @@
+deployment:
+  revisionHistoryLimit: 4
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+cronJob:
+  enabled: true
+  jobs:
+    smoke:
+      schedule: "0 0 * * *"

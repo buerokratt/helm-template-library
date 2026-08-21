@@ -1,0 +1,10 @@
+cronJob:
+  enabled: true
+  jobs:
+    cleanup:
+      schedule: "0 2 * * *"
+      command: ["/app/cleanup"]
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi

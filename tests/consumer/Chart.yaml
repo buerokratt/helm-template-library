@@ -1,0 +1,8 @@
+apiVersion: v2
+name: phase1-consumer
+version: 0.1.0
+appVersion: "1.0.0"
+dependencies:
+  - name: byk-helm-template-library
+    version: 1.0.0
+    repository: file://../..

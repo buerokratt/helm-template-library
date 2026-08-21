@@ -1,0 +1,18 @@
+containerPorts:
+  - name: http
+    containerPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  ingresses:
+    public:
+      hosts:
+        - host: app.example.com
+          paths:
+            - path: /
+              pathType: Prefix
+              backendService: phase1-consumer
+              port: http
+      tls:
+        - secretName: app-example-tls

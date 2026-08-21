@@ -1,0 +1,5 @@
+test/*
+.DS_Store
+tests/consumer/Chart.lock
+tests/consumer/charts/
+dist/

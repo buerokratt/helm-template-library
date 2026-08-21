@@ -1,0 +1,23 @@
+{{- $resources := list
+  (include "template-library.deployment" .)
+  (include "template-library.statefulset" .)
+  (include "template-library.daemonset" .)
+  (include "template-library.service" .)
+  (include "template-library.serviceAccount" .)
+  (include "template-library.role" .)
+  (include "template-library.roleBinding" .)
+  (include "template-library.configmap" .)
+  (include "template-library.pvc" .)
+  (include "template-library.ingress" .)
+  (include "template-library.job" .)
+  (include "template-library.cronjob" .)
+  (include "template-library.networkPolicy" .)
+  (include "template-library.autoscaling" .)
+  (include "template-library.podDisruptionBudget" .)
+-}}
+{{- range $resource := $resources }}
+  {{- if ($resource | trim) }}
+---
+{{ $resource }}
+  {{- end }}
+{{- end }}

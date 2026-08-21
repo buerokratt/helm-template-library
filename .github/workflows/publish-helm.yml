@@ -1,0 +1,110 @@
+name: Publish Helm chart
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-helm-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Validate, package, and publish
+    runs-on: ubuntu-latest
+
+    env:
+      HELM_VERSION: v3.18.4
+      CHANNEL: stable
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Verify release version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          chart_version="$(helm show chart . | awk '$1 == "version:" { print $2; exit }')"
+          tag_version="${GITHUB_REF_NAME#v}"
+
+          test -n "${chart_version}"
+          if [[ "${tag_version}" != "${chart_version}" ]]; then
+            echo "Tag ${GITHUB_REF_NAME} does not match Chart.yaml version ${chart_version}" >&2
+            exit 1
+          fi
+
+      - name: Test consumer contract
+        run: ./scripts/test.sh
+
+      - name: Lint and package chart
+        shell: bash
+        run: |
+          set -euo pipefail
+          helm dependency update .
+          helm lint . --strict
+          mkdir -p dist
+          helm package . --destination dist
+          sha256sum dist/*.tgz > dist/SHA256SUMS
+
+      - name: Upload immutable package evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: helm-package-${{ github.ref_name }}
+          path: |
+            dist/*.tgz
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: Upload chart to GitHub Container Registry
+        shell: bash
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          chart_package="$(find dist -maxdepth 1 -type f -name '*.tgz' -print -quit)"
+          test -n "${chart_package}"
+
+          github_owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          printf '%s' "${GHCR_TOKEN}" | helm registry login ghcr.io \
+            --username "${GITHUB_ACTOR}" \
+            --password-stdin
+          helm push "${chart_package}" "oci://ghcr.io/${github_owner}"
+
+      - name: Prove clean OCI consumer
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          github_owner="$(printf '%s' "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          chart_version="${GITHUB_REF_NAME#v}"
+          consumer_dir="$(mktemp -d)"
+          mkdir -p "${consumer_dir}/templates"
+
+          printf '%s\n' \
+            'apiVersion: v2' \
+            'name: oci-consumer-proof' \
+            'version: 0.1.0' \
+            'dependencies:' \
+            '  - name: byk-helm-template-library' \
+            "    version: ${chart_version}" \
+            "    repository: oci://ghcr.io/${github_owner}" \
+            > "${consumer_dir}/Chart.yaml"
+          cp tests/consumer/templates/resources.yaml "${consumer_dir}/templates/resources.yaml"
+          cp tests/consumer/values.yaml "${consumer_dir}/values.yaml"
+
+          helm dependency build "${consumer_dir}"
+          helm lint "${consumer_dir}" --strict
+          helm template oci-proof "${consumer_dir}" --namespace phase1 >/dev/null

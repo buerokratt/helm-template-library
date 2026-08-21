@@ -1,0 +1,16 @@
+workload:
+  kind: Deployment
+  selectorLabels:
+    app: phase1-consumer
+
+image:
+  repository: registry.example.invalid
+  name: phase1-consumer
+  tag: "1.0.0"
+
+services:
+  http:
+    name: phase1-consumer
+    ports:
+      http:
+        port: 8080
